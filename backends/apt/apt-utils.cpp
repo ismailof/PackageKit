@@ -272,6 +272,24 @@ string fetchChangelogData(AptCacheFile &CacheFile,
     *update_text = std::regex_replace(*update_text, std::basic_regex("~"), string("\\~"));
     *update_text = std::regex_replace(*update_text, std::basic_regex("<([^@]*)>"), string("\\<$1\\>"));
 
+    // Add CVE links
+    *update_text = std::regex_replace(*update_text,
+        std::basic_regex("CVE-\\d{4}-\\d{4,}", std::regex::icase),
+        string(R"([$0](https://web.nvd.nist.gov/view/vuln/detail?vulnId=$0))"));
+
+    // Add Ubuntu bug links
+    *update_text = std::regex_replace(*update_text,
+        std::basic_regex("LP:\\s+(?:[,\\s*]?#(\\d+))*", std::regex::icase),
+        string(R"([$0](https://bugs.launchpad.net/bugs/$1))"));
+
+    // Add Debian bug links
+    // May have several bug numbers in a row, replace recursively from the end
+    const auto debianRegex = std::basic_regex("(closes:\\s*(?:(?:bug)?\\s?#?\\d+(?:,\\s+))*)((?:bug)?#?\\s?(\\d+))", std::regex::icase);
+    while (std::regex_search(*update_text, debianRegex)) {
+        *update_text = std::regex_replace(*update_text, debianRegex,
+            string(R"($1[$2](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=$3))"));
+    }
+
     changelog.erase(changelog.find_last_not_of(" \t\n") + 1);
     return changelog;
 }
