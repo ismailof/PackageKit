@@ -219,10 +219,10 @@ std::string fetchChangelogData(
 
         if (starts_with(str, srcpkg.c_str())) {
             // Check to see if the the text isn't about the current package,
-            // otherwise add a == version ==
+            // otherwise add a version header
             GMatchInfo *match_info;
             if (g_regex_match(regexVer, str, G_REGEX_MATCH_ANCHORED, &match_info)) {
-                gchar *version;
+                g_autofree gchar *version;
                 version = g_match_info_fetch_named(match_info, "version");
 
                 // Compare if the current version is shown in the changelog, to not
@@ -234,17 +234,15 @@ std::string fetchChangelogData(
                            currver.SourceVerStr(),
                            currver.SourceVerStr() + strlen(currver.SourceVerStr()))
                            <= 0) {
-                    g_free(version);
                     break;
-                } else {
-                    if (!update_text->empty()) {
-                        update_text->append("\n\n");
-                    }
-                    update_text->append(" == ");
-                    update_text->append(version);
-                    update_text->append(" ==");
-                    g_free(version);
                 }
+
+                if (!update_text->empty()) {
+                    update_text->append("\n\n");
+                }
+                update_text->append("### ");
+                update_text->append(version);
+                update_text->append("\n\n");
             }
             g_match_info_free(match_info);
         } else if (starts_with(str, " --")) {
@@ -265,6 +263,10 @@ std::string fetchChangelogData(
 
             update_text->append("\n\n");
             update_text->append(str);
+        } else if (starts_with(str, " [")) {
+            // Block of changes
+            update_text->append("\n#### ");
+            update_text->append(str);
         } else {
             update_text->append("\n");
             update_text->append(str);
@@ -273,6 +275,10 @@ std::string fetchChangelogData(
         changelog.append(str);
         changelog.append("\n");
     }
+
+    // Escape raw symbols that may be interpreted as markdown or html tags
+    *update_text = std::regex_replace(*update_text, std::basic_regex("~"), std::string("\\~"));
+    *update_text = std::regex_replace(*update_text, std::basic_regex("<([^@]*)>"), std::string("\\<$1\\>"));
 
     changelog.erase(changelog.find_last_not_of(" \t\n") + 1);
     return changelog;
